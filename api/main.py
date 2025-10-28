@@ -5,13 +5,26 @@ Provides HTTP endpoints for Golden Path registry operations.
 Designed to be called by stdio MCP clients.
 """
 
-from fastapi import FastAPI, HTTPException, Depends, File, UploadFile, Form
+import logging
+from fastapi import FastAPI, HTTPException, Depends, File, UploadFile, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from botocore.exceptions import ClientError
 
 from .auth import verify_api_key, optional_verify_api_key
 from .registry import GoldenPathRegistry
+
+# Configure logging with JSON format for structured analytics
+import json
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def log_analytics(event: str, data: dict):
+    """Log analytics event with structured data."""
+    logger.info(f"ANALYTICS: {json.dumps({'event': event, **data})}")
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -41,6 +54,7 @@ async def health_check():
 
 @app.post("/api/v1/golden-paths")
 async def create_golden_path(
+    request: Request,
     file: UploadFile = File(...),
     name: str = Form(...),
     version: str = Form("0.0.1"),
@@ -51,13 +65,22 @@ async def create_golden_path(
 
     Args:
         file: Golden Path markdown file
-        name: Golden Path name (kebab-case)
+        name: str = Form(...),
         version: Semver version (default: 0.0.1)
         namespace: User's namespace (from API key)
 
     Returns:
         Upload confirmation with registry location
     """
+    # Log analytics
+    log_analytics("create", {
+        "visitor_id": request.headers.get("x-visitor-id", "anonymous"),
+        "client_version": request.headers.get("x-client-version", "unknown"),
+        "namespace": namespace,
+        "name": name,
+        "version": version
+    })
+
     # Read file content
     content = await file.read()
 
@@ -72,6 +95,7 @@ async def create_golden_path(
 
 @app.get("/api/v1/golden-paths/{namespace}/{name}")
 async def fetch_golden_path(
+    request: Request,
     namespace: str,
     name: str,
     version: str = "latest",
@@ -89,6 +113,14 @@ async def fetch_golden_path(
     Returns:
         Golden Path content and metadata
     """
+    # Log analytics
+    log_analytics("fetch", {
+        "visitor_id": request.headers.get("x-visitor-id", "anonymous"),
+        "client_version": request.headers.get("x-client-version", "unknown"),
+        "path": f"{namespace}/{name}:{version}",
+        "authenticated": user_namespace is not None
+    })
+
     try:
         result = registry.fetch_path(namespace, name, version)
         return result
@@ -104,6 +136,7 @@ async def fetch_golden_path(
 
 @app.get("/api/v1/golden-paths")
 async def list_golden_paths(
+    request: Request,
     namespace: str = None,
     user_namespace: str | None = Depends(optional_verify_api_key)
 ):
@@ -117,6 +150,14 @@ async def list_golden_paths(
     Returns:
         List of Golden Paths with metadata
     """
+    # Log analytics
+    log_analytics("list", {
+        "visitor_id": request.headers.get("x-visitor-id", "anonymous"),
+        "client_version": request.headers.get("x-client-version", "unknown"),
+        "namespace": namespace,
+        "authenticated": user_namespace is not None
+    })
+
     try:
         paths = registry.list_paths(namespace)
         return {"paths": paths}
@@ -127,6 +168,7 @@ async def list_golden_paths(
 
 @app.get("/api/v1/search")
 async def search_golden_paths(
+    request: Request,
     q: str,
     user_namespace: str | None = Depends(optional_verify_api_key)
 ):
@@ -140,6 +182,14 @@ async def search_golden_paths(
     Returns:
         List of matching Golden Paths
     """
+    # Log analytics
+    log_analytics("search", {
+        "visitor_id": request.headers.get("x-visitor-id", "anonymous"),
+        "client_version": request.headers.get("x-client-version", "unknown"),
+        "query": q,
+        "authenticated": user_namespace is not None
+    })
+
     try:
         results = registry.search_paths(q)
         return {"results": results}
@@ -150,6 +200,7 @@ async def search_golden_paths(
 
 @app.delete("/api/v1/golden-paths/{namespace}/{name}")
 async def delete_golden_path(
+    request: Request,
     namespace: str,
     name: str,
     version: str = "latest",
@@ -167,6 +218,14 @@ async def delete_golden_path(
     Returns:
         Deletion confirmation
     """
+    # Log analytics
+    log_analytics("delete", {
+        "visitor_id": request.headers.get("x-visitor-id", "anonymous"),
+        "client_version": request.headers.get("x-client-version", "unknown"),
+        "path": f"{namespace}/{name}:{version}",
+        "user_namespace": user_namespace
+    })
+
     # Authorization check: can only delete your own namespace
     if namespace != user_namespace:
         raise HTTPException(
