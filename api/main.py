@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from botocore.exceptions import ClientError
 
-from .auth import verify_api_key
+from .auth import verify_api_key, optional_verify_api_key
 from .registry import GoldenPathRegistry
 
 # Initialize FastAPI app
@@ -75,7 +75,7 @@ async def fetch_golden_path(
     namespace: str,
     name: str,
     version: str = "latest",
-    user_namespace: str = Depends(verify_api_key)
+    user_namespace: str | None = Depends(optional_verify_api_key)
 ):
     """
     Fetch a Golden Path from the registry.
@@ -84,7 +84,7 @@ async def fetch_golden_path(
         namespace: Golden Path namespace
         name: Golden Path name
         version: Version to fetch (default: latest)
-        user_namespace: Authenticated user's namespace
+        user_namespace: Authenticated user's namespace (optional)
 
     Returns:
         Golden Path content and metadata
@@ -105,14 +105,14 @@ async def fetch_golden_path(
 @app.get("/api/v1/golden-paths")
 async def list_golden_paths(
     namespace: str = None,
-    user_namespace: str = Depends(verify_api_key)
+    user_namespace: str | None = Depends(optional_verify_api_key)
 ):
     """
     List Golden Paths in the registry.
 
     Args:
         namespace: Optional namespace filter
-        user_namespace: Authenticated user's namespace
+        user_namespace: Authenticated user's namespace (optional)
 
     Returns:
         List of Golden Paths with metadata
@@ -128,14 +128,14 @@ async def list_golden_paths(
 @app.get("/api/v1/search")
 async def search_golden_paths(
     q: str,
-    user_namespace: str = Depends(verify_api_key)
+    user_namespace: str | None = Depends(optional_verify_api_key)
 ):
     """
     Search Golden Paths by query.
 
     Args:
         q: Search query
-        user_namespace: Authenticated user's namespace
+        user_namespace: Authenticated user's namespace (optional)
 
     Returns:
         List of matching Golden Paths
