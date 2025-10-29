@@ -1,0 +1,741 @@
+openapi: 3.1.0
+info:
+  title: Golden Path Registry API
+  description: REST API for Golden Path storage and retrieval
+  version: 1.0.0
+paths:
+  /api/v1/users/register:
+    post:
+      tags:
+      - users
+      summary: Register User
+      description: 'Register a new user (called by Cognito PostAuthentication Lambda).
+
+
+        This endpoint is typically called automatically after Cognito authentication.
+
+        It creates a user record in the database and optionally generates an API key
+
+        if the email is verified.'
+      operationId: register_user_api_v1_users_register_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegisterRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRegisterResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/me:
+    get:
+      tags:
+      - users
+      summary: Get Current User
+      description: 'Get the current authenticated user''s profile.
+
+
+        Requires: Valid API key in Authorization header'
+      operationId: get_current_user_api_v1_users_me_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - users
+      summary: Update Current User
+      description: 'Update the current user''s profile.
+
+
+        Requires: Valid API key in Authorization header'
+      operationId: update_current_user_api_v1_users_me_patch
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/me/api-keys:
+    get:
+      tags:
+      - api-keys
+      summary: List Api Keys
+      description: 'List all API keys for the current user.
+
+
+        Requires: Valid API key in Authorization header'
+      operationId: list_api_keys_api_v1_users_me_api_keys_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - api-keys
+      summary: Create Api Key
+      description: 'Create a new API key for the current user.
+
+
+        The generated API key is only returned once. Save it securely!
+
+
+        Requires: Valid API key in Authorization header'
+      operationId: create_api_key_api_v1_users_me_api_keys_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIKeyCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyCreateResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/me/api-keys/{key_id}:
+    delete:
+      tags:
+      - api-keys
+      summary: Delete Api Key
+      description: 'Delete an API key.
+
+
+        Requires: Valid API key in Authorization header
+
+        Note: You cannot delete the API key you''re currently using for authentication.'
+      operationId: delete_api_key_api_v1_users_me_api_keys__key_id__delete
+      parameters:
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Key Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /health:
+    get:
+      summary: Health Check
+      description: Health check endpoint.
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/golden-paths:
+    post:
+      summary: Create Golden Path
+      description: "Upload a Golden Path to the registry.\n\nArgs:\n    file: Golden\
+        \ Path markdown file\n    name: str = Form(...),\n    version: Semver version\
+        \ (default: 0.0.1)\n    namespace: User's namespace (from API key)\n\nReturns:\n\
+        \    Upload confirmation with registry location"
+      operationId: create_golden_path_api_v1_golden_paths_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_create_golden_path_api_v1_golden_paths_post'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      summary: List Golden Paths
+      description: "List Golden Paths in the registry.\n\nArgs:\n    namespace: Optional\
+        \ namespace filter\n    user_namespace: Authenticated user's namespace (optional)\n\
+        \nReturns:\n    List of Golden Paths with metadata"
+      operationId: list_golden_paths_api_v1_golden_paths_get
+      parameters:
+      - name: namespace
+        in: query
+        required: false
+        schema:
+          type: string
+          title: Namespace
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/golden-paths/{namespace}/{name}:
+    get:
+      summary: Fetch Golden Path
+      description: "Fetch a Golden Path from the registry.\n\nArgs:\n    namespace:\
+        \ Golden Path namespace\n    name: Golden Path name\n    version: Version\
+        \ to fetch (default: latest)\n    user_namespace: Authenticated user's namespace\
+        \ (optional)\n\nReturns:\n    Golden Path content and metadata"
+      operationId: fetch_golden_path_api_v1_golden_paths__namespace___name__get
+      parameters:
+      - name: namespace
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Namespace
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Name
+      - name: version
+        in: query
+        required: false
+        schema:
+          type: string
+          default: latest
+          title: Version
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      summary: Delete Golden Path
+      description: "Delete a Golden Path from the registry.\n\nArgs:\n    namespace:\
+        \ Golden Path namespace\n    name: Golden Path name\n    version: Version\
+        \ to delete (default: latest)\n    user_namespace: Authenticated user's namespace\n\
+        \nReturns:\n    Deletion confirmation"
+      operationId: delete_golden_path_api_v1_golden_paths__namespace___name__delete
+      parameters:
+      - name: namespace
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Namespace
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Name
+      - name: version
+        in: query
+        required: false
+        schema:
+          type: string
+          default: latest
+          title: Version
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/search:
+    get:
+      summary: Search Golden Paths
+      description: "Search Golden Paths by query.\n\nArgs:\n    q: Search query\n\
+        \    user_namespace: Authenticated user's namespace (optional)\n\nReturns:\n\
+        \    List of matching Golden Paths"
+      operationId: search_golden_paths_api_v1_search_get
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Q
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    APIKeyCreateRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+          description: Human-readable key name
+        scopes:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Scopes
+          description: Permission scopes
+          default:
+          - read
+          - write
+      type: object
+      required:
+      - name
+      title: APIKeyCreateRequest
+      description: Request body for creating an API key.
+    APIKeyCreateResponse:
+      properties:
+        key_id:
+          type: string
+          title: Key Id
+        name:
+          type: string
+          title: Name
+        api_key:
+          type: string
+          title: Api Key
+          description: The actual API key - save this! It won't be shown again
+        key_prefix:
+          type: string
+          title: Key Prefix
+        scopes:
+          items:
+            type: string
+          type: array
+          title: Scopes
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        message:
+          type: string
+          title: Message
+          default: Save this API key securely. You won't be able to see it again.
+      type: object
+      required:
+      - key_id
+      - name
+      - api_key
+      - key_prefix
+      - scopes
+      - created_at
+      title: APIKeyCreateResponse
+      description: Response for creating an API key (includes plaintext key once).
+    APIKeyListResponse:
+      properties:
+        api_keys:
+          items:
+            $ref: '#/components/schemas/APIKeyResponse'
+          type: array
+          title: Api Keys
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - api_keys
+      - total
+      title: APIKeyListResponse
+      description: Response for listing API keys.
+    APIKeyResponse:
+      properties:
+        key_id:
+          type: string
+          title: Key Id
+        user_id:
+          type: string
+          title: User Id
+        name:
+          type: string
+          title: Name
+        key_prefix:
+          type: string
+          title: Key Prefix
+        scopes:
+          items:
+            type: string
+          type: array
+          title: Scopes
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        last_used:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Used
+        is_active:
+          type: boolean
+          title: Is Active
+      type: object
+      required:
+      - key_id
+      - user_id
+      - name
+      - key_prefix
+      - scopes
+      - created_at
+      - last_used
+      - is_active
+      title: APIKeyResponse
+      description: API key metadata (without the actual key).
+    Body_create_golden_path_api_v1_golden_paths_post:
+      properties:
+        file:
+          type: string
+          format: binary
+          title: File
+        name:
+          type: string
+          title: Name
+        version:
+          type: string
+          title: Version
+          default: 0.0.1
+      type: object
+      required:
+      - file
+      - name
+      title: Body_create_golden_path_api_v1_golden_paths_post
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    UserRegisterRequest:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+          description: Cognito user ID (sub)
+        email:
+          type: string
+          format: email
+          title: Email
+        email_verified:
+          type: boolean
+          title: Email Verified
+          default: false
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        auth_provider:
+          type: string
+          title: Auth Provider
+          description: google|email|github
+      type: object
+      required:
+      - user_id
+      - email
+      - auth_provider
+      title: UserRegisterRequest
+      description: Request body for user registration.
+    UserRegisterResponse:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        email:
+          type: string
+          title: Email
+        email_verified:
+          type: boolean
+          title: Email Verified
+        namespace:
+          type: string
+          title: Namespace
+        auth_provider:
+          type: string
+          title: Auth Provider
+        default_api_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Api Key
+          description: Only provided if email_verified=true
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+      type: object
+      required:
+      - user_id
+      - email
+      - email_verified
+      - namespace
+      - auth_provider
+      title: UserRegisterResponse
+      description: Response for user registration.
+    UserResponse:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        email:
+          type: string
+          title: Email
+        email_verified:
+          type: boolean
+          title: Email Verified
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        namespace:
+          type: string
+          title: Namespace
+        bio:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Bio
+        github_username:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Github Username
+        auth_provider:
+          type: string
+          title: Auth Provider
+        subscription_tier:
+          type: string
+          title: Subscription Tier
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - user_id
+      - email
+      - email_verified
+      - name
+      - namespace
+      - bio
+      - github_username
+      - auth_provider
+      - subscription_tier
+      - created_at
+      - updated_at
+      title: UserResponse
+      description: User profile response.
+    UserUpdateRequest:
+      properties:
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        bio:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Bio
+        github_username:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Github Username
+      type: object
+      title: UserUpdateRequest
+      description: Request body for updating user profile.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

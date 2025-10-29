@@ -13,6 +13,9 @@ from botocore.exceptions import ClientError
 
 from .auth import verify_api_key, optional_verify_api_key
 from .registry import GoldenPathRegistry
+from .database import engine
+from .routers import users, api_keys
+from contextlib import asynccontextmanager
 
 # Configure logging with JSON format for structured analytics
 import json
@@ -26,11 +29,21 @@ def log_analytics(event: str, data: dict):
     """Log analytics event with structured data."""
     logger.info(f"ANALYTICS: {json.dumps({'event': event, **data})}")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown logic."""
+    logger.info("Starting Golden Path API")
+    # Database connection is already handled by get_db() dependency
+    yield
+    logger.info("Shutting down Golden Path API")
+    await engine.dispose()
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Golden Path Registry API",
     description="REST API for Golden Path storage and retrieval",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS middleware for web clients
@@ -44,6 +57,10 @@ app.add_middleware(
 
 # Initialize registry
 registry = GoldenPathRegistry()
+
+# Include routers
+app.include_router(users.router)
+app.include_router(api_keys.router)
 
 
 @app.get("/health")

@@ -9,6 +9,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY api/ ./api/
 
+# Copy Alembic configuration and migrations
+COPY alembic.ini .
+COPY alembic/ ./alembic/
+
+# Copy utility scripts
+COPY generate_openapi.py .
+
 # Expose port
 EXPOSE 8000
 
