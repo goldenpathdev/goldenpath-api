@@ -4,11 +4,24 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
-# Get database URL from environment (defaults to local development)
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/goldenpath"
-)
+# Get database URL from environment
+# Supports two modes:
+# 1. DATABASE_URL (full connection string)
+# 2. Individual components (DB_HOST, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    # Construct from individual components (used in production ECS)
+    db_host = os.getenv("DB_HOST", "localhost")
+    db_port = os.getenv("DB_PORT", "5432")
+    db_name = os.getenv("DB_NAME", "goldenpath")
+    db_user = os.getenv("DB_USERNAME", "postgres")
+    db_pass = os.getenv("DB_PASSWORD", "postgres")
+
+    # Add SSL requirement for RDS (if not localhost)
+    ssl_param = "?ssl=require" if db_host != "localhost" and "rds.amazonaws.com" in db_host else ""
+
+    DATABASE_URL = f"postgresql+asyncpg://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}{ssl_param}"
 
 # Create async engine
 engine = create_async_engine(

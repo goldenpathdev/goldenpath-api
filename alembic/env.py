@@ -13,6 +13,20 @@ config = context.config
 
 # Override sqlalchemy.url from environment variable
 database_url = os.getenv("DATABASE_URL")
+
+if not database_url:
+    # Construct from individual components (used in production ECS)
+    db_host = os.getenv("DB_HOST", "localhost")
+    db_port = os.getenv("DB_PORT", "5432")
+    db_name = os.getenv("DB_NAME", "goldenpath")
+    db_user = os.getenv("DB_USERNAME", "postgres")
+    db_pass = os.getenv("DB_PASSWORD", "postgres")
+
+    # Add SSL requirement for RDS (if not localhost)
+    ssl_param = "?ssl=require" if db_host != "localhost" and "rds.amazonaws.com" in db_host else ""
+
+    database_url = f"postgresql+asyncpg://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}{ssl_param}"
+
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 
