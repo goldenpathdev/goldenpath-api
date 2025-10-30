@@ -20,64 +20,30 @@ Push to main → GitHub Actions → Build Docker Image → Push to ECR → Updat
 
 You need to configure the following secrets in your GitHub repository:
 
-1. **AWS_ROLE_ARN**: The ARN of the IAM role that GitHub Actions will assume
-   - Format: `arn:aws:iam::105249143262:role/github-actions-role`
-   - This role must have permissions for:
-     - ECR (push images)
-     - ECS (update service, describe services)
+1. **AWS_ACCESS_KEY_ID**: AWS access key for GitHub Actions
+2. **AWS_SECRET_ACCESS_KEY**: AWS secret access key for GitHub Actions
 
-### Setting up OIDC (Recommended)
+These credentials must have permissions for:
+- ECR (push images)
+- ECS (update service, describe services)
 
-The workflow uses OpenID Connect (OIDC) for secure authentication without storing AWS credentials.
+### GitHub Variables Required
 
-#### Create IAM Role for GitHub Actions
+1. **AWS_REGION**: The AWS region (e.g., `us-east-1`)
 
-```bash
-# Create trust policy
-cat > github-trust-policy.json <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::105249143262:oidc-provider/token.actions.githubusercontent.com"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-        },
-        "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:goldenpathdev/goldenpath-api:*"
-        }
-      }
-    }
-  ]
-}
-EOF
-
-# Create the role
-aws iam create-role \
-  --role-name github-actions-goldenpath-api \
-  --assume-role-policy-document file://github-trust-policy.json
-
-# Attach policies
-aws iam attach-role-policy \
-  --role-name github-actions-goldenpath-api \
-  --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
-
-aws iam attach-role-policy \
-  --role-name github-actions-goldenpath-api \
-  --policy-arn arn:aws:iam::aws:policy/AmazonECS_FullAccess
-```
-
-#### Add Secret to GitHub
+### Setting up GitHub Secrets
 
 1. Go to repository settings: `https://github.com/goldenpathdev/goldenpath-api/settings/secrets/actions`
 2. Click "New repository secret"
-3. Name: `AWS_ROLE_ARN`
-4. Value: `arn:aws:iam::105249143262:role/github-actions-goldenpath-api`
+3. Add `AWS_ACCESS_KEY_ID` with your AWS access key
+4. Add `AWS_SECRET_ACCESS_KEY` with your AWS secret access key
+
+### Setting up GitHub Variables
+
+1. Go to repository settings: `https://github.com/goldenpathdev/goldenpath-api/settings/variables/actions`
+2. Click "New repository variable"
+3. Name: `AWS_REGION`
+4. Value: `us-east-1`
 
 ## Workflow Steps
 
@@ -85,7 +51,7 @@ aws iam attach-role-policy \
 Uses `actions/checkout@v4` to clone the repository.
 
 ### 2. Configure AWS Credentials
-Uses `aws-actions/configure-aws-credentials@v4` with OIDC to assume the IAM role.
+Uses `aws-actions/configure-aws-credentials@v4` with AWS access keys for authentication.
 
 ### 3. Login to ECR
 Uses `aws-actions/amazon-ecr-login@v2` to authenticate with Amazon ECR.
