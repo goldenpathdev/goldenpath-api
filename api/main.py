@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Depends, File, UploadFile, Form, Req
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from botocore.exceptions import ClientError
+from sqlalchemy import text
 
 from .auth import verify_api_key, optional_verify_api_key
 from .registry import GoldenPathRegistry
@@ -65,8 +66,32 @@ app.include_router(api_keys.router)
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
-    return {"status": "ok"}
+    """
+    Health check endpoint with database connectivity test.
+
+    Returns:
+        - status: "ok" if all checks pass, "degraded" if database fails
+        - database: Connection status ("connected" or "disconnected")
+        - error: Error message if database check fails
+    """
+    health_status = {
+        "status": "ok",
+        "database": "unknown"
+    }
+
+    # Test database connectivity
+    try:
+        async with engine.connect() as conn:
+            # Simple query to verify database is responding
+            await conn.execute(text("SELECT 1"))
+            health_status["database"] = "connected"
+    except Exception as e:
+        logger.error(f"Database health check failed: {str(e)}")
+        health_status["status"] = "degraded"
+        health_status["database"] = "disconnected"
+        health_status["error"] = str(e)
+
+    return health_status
 
 
 @app.post("/api/v1/golden-paths")
@@ -155,29 +180,70 @@ async def fetch_golden_path(
 async def list_golden_paths(
     request: Request,
     namespace: str = None,
+    page: int = 1,
+    per_page: int = 50,
+    sort_by: str = "name",
     user_namespace: str | None = Depends(optional_verify_api_key)
 ):
     """
-    List Golden Paths in the registry.
+    List Golden Paths in the registry with pagination and sorting.
 
     Args:
         namespace: Optional namespace filter
+        page: Page number (default: 1)
+        per_page: Items per page (default: 50, max: 100)
+        sort_by: Sort field (name, namespace, version, last_modified) (default: name)
         user_namespace: Authenticated user's namespace (optional)
 
     Returns:
-        List of Golden Paths with metadata
+        Paginated list of Golden Paths with metadata
     """
+    # Validate and constrain parameters
+    page = max(1, page)  # Must be at least 1
+    per_page = min(max(1, per_page), 100)  # Between 1 and 100
+
+    # Validate sort_by
+    valid_sort_fields = ["name", "namespace", "version", "last_modified"]
+    if sort_by not in valid_sort_fields:
+        sort_by = "name"
+
     # Log analytics
     log_analytics("list", {
         "visitor_id": request.headers.get("x-visitor-id", "anonymous"),
         "client_version": request.headers.get("x-client-version", "unknown"),
         "namespace": namespace,
+        "page": page,
+        "per_page": per_page,
+        "sort_by": sort_by,
         "authenticated": user_namespace is not None
     })
 
     try:
-        paths = registry.list_paths(namespace)
-        return {"paths": paths}
+        # Get all matching paths
+        all_paths = registry.list_paths(namespace)
+
+        # Sort paths
+        reverse = sort_by == "last_modified"  # Newest first for timestamps
+        all_paths.sort(key=lambda x: x.get(sort_by, ""), reverse=reverse)
+
+        # Calculate pagination
+        total_count = len(all_paths)
+        total_pages = (total_count + per_page - 1) // per_page  # Ceiling division
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+
+        # Paginate
+        paths = all_paths[start_idx:end_idx]
+
+        return {
+            "paths": paths,
+            "page": page,
+            "per_page": per_page,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1
+        }
 
     except ClientError as e:
         raise HTTPException(status_code=500, detail=str(e))
