@@ -7,7 +7,6 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-1
   ECR_REPOSITORY: goldenpath-api
   ECS_CLUSTER: goldenpath-cluster-prod
   ECS_SERVICE: goldenpath-service-prod
@@ -18,10 +17,6 @@ jobs:
     name: Build and Deploy
     runs-on: ubuntu-latest
 
-    permissions:
-      id-token: write
-      contents: read
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,8 +24,9 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -59,14 +55,14 @@ jobs:
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
             --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ vars.AWS_REGION }}
 
       - name: Wait for deployment to complete
         run: |
           aws ecs wait services-stable \
             --cluster ${{ env.ECS_CLUSTER }} \
             --services ${{ env.ECS_SERVICE }} \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ vars.AWS_REGION }}
 
       - name: Verify deployment
         run: |
@@ -77,6 +73,6 @@ jobs:
           aws ecs describe-services \
             --cluster ${{ env.ECS_CLUSTER }} \
             --services ${{ env.ECS_SERVICE }} \
-            --region ${{ env.AWS_REGION }} \
+            --region ${{ vars.AWS_REGION }} \
             --query 'services[0].deployments[*].[status,desiredCount,runningCount]' \
             --output table
