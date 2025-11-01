@@ -79,9 +79,8 @@ class UserRepository:
         """
         Create user from Cognito JWT on first login.
 
-        If a user with this email already exists (e.g., from OAuth signup),
-        link this Cognito account to the existing user record by updating
-        the user_id to match the Cognito username.
+        If a user with this email already exists (e.g., from a test user or
+        different auth method), return that user instead of creating a duplicate.
 
         Args:
             cognito_username: Cognito sub claim (unique user ID)
@@ -92,19 +91,11 @@ class UserRepository:
         existing_user = await self.get_by_email(email)
 
         if existing_user:
-            # User exists from OAuth - link this Cognito account to existing record
-            # Update the user_id to match Cognito username for future lookups
-            await self.db.execute(
-                update(User)
-                .where(User.email == email)
-                .values(
-                    user_id=cognito_username,
-                    email_verified=True,  # Cognito verified
-                    updated_at=datetime.utcnow()
-                )
-            )
-            await self.db.commit()
-            return await self.get_by_id(cognito_username)
+            # User with this email exists - return it
+            # This handles cases where:
+            # 1. User was created by test/seed scripts
+            # 2. User signed up with different method but same email
+            return existing_user
 
         # New user - create normally
         return await self.create(
