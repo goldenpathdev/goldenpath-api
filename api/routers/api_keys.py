@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import get_db
-from api.auth import get_current_user_from_api_key
+from api.auth import get_current_user_from_jwt  # Changed from API key to JWT auth
 from api.repositories import APIKeyRepository
 from api.models import User
 from api.schemas import (
@@ -19,13 +19,13 @@ router = APIRouter(prefix="/api/v1/users/me/api-keys", tags=["api-keys"])
 
 @router.get("", response_model=APIKeyListResponse)
 async def list_api_keys(
-    current_user: User = Depends(get_current_user_from_api_key),
+    current_user: User = Depends(get_current_user_from_jwt),
     db: AsyncSession = Depends(get_db)
 ):
     """
     List all API keys for the current user.
 
-    Requires: Valid API key in Authorization header
+    Requires: Valid JWT token in Authorization header (dashboard authentication)
     """
     api_key_repo = APIKeyRepository(db)
     keys = await api_key_repo.list_by_user(current_user.user_id)
@@ -39,7 +39,7 @@ async def list_api_keys(
 @router.post("", response_model=APIKeyCreateResponse, status_code=201)
 async def create_api_key(
     request: APIKeyCreateRequest,
-    current_user: User = Depends(get_current_user_from_api_key),
+    current_user: User = Depends(get_current_user_from_jwt),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -47,7 +47,7 @@ async def create_api_key(
 
     The generated API key is only returned once. Save it securely!
 
-    Requires: Valid API key in Authorization header
+    Requires: Valid JWT token in Authorization header (dashboard authentication)
     """
     # Check if email is verified
     if not current_user.email_verified:
@@ -79,14 +79,13 @@ async def create_api_key(
 @router.delete("/{key_id}", status_code=204)
 async def delete_api_key(
     key_id: str,
-    current_user: User = Depends(get_current_user_from_api_key),
+    current_user: User = Depends(get_current_user_from_jwt),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Delete an API key.
 
-    Requires: Valid API key in Authorization header
-    Note: You cannot delete the API key you're currently using for authentication.
+    Requires: Valid JWT token in Authorization header (dashboard authentication)
     """
     api_key_repo = APIKeyRepository(db)
 

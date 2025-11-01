@@ -18,6 +18,7 @@ COPY alembic/ ./alembic/
 
 # Copy utility scripts
 COPY generate_openapi.py .
+COPY init_db.py .
 
 # Expose port
 EXPOSE 8000

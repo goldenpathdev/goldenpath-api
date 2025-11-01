@@ -15,7 +15,7 @@ from sqlalchemy import text
 from .auth import verify_api_key, optional_verify_api_key
 from .registry import GoldenPathRegistry
 from .database import engine
-from .routers import users, api_keys
+from .routers import users, api_keys, profile
 from contextlib import asynccontextmanager
 
 # Configure logging with JSON format for structured analytics
@@ -60,8 +60,12 @@ app.add_middleware(
 registry = GoldenPathRegistry()
 
 # Include routers
-app.include_router(users.router)
-app.include_router(api_keys.router)
+# IMPORTANT: More specific routes must be registered BEFORE less specific routes
+# /api/v1/users/me/api-keys must be before /api/v1/users/me
+# /api/v1/users/me must be before /api/v1/users
+app.include_router(api_keys.router)    # /api/v1/users/me/api-keys (most specific)
+app.include_router(profile.router)     # /api/v1/users/me (more specific)
+app.include_router(users.router)       # /api/v1/users (least specific)
 
 
 @app.get("/health")

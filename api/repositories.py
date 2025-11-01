@@ -63,6 +63,35 @@ class UserRepository:
         await self.db.refresh(user)
         return user
 
+    async def get_by_cognito_username(self, cognito_username: str) -> Optional[User]:
+        """
+        Get user by Cognito username (sub claim from JWT).
+        Note: In our model, cognito username is stored as user_id.
+        """
+        return await self.get_by_id(cognito_username)
+
+    async def create_from_cognito(
+        self,
+        cognito_username: str,
+        email: str,
+        namespace: str,
+    ) -> User:
+        """
+        Create user from Cognito JWT on first login.
+
+        Args:
+            cognito_username: Cognito sub claim (unique user ID)
+            email: User email from JWT
+            namespace: Generated namespace (@username)
+        """
+        return await self.create(
+            user_id=cognito_username,
+            email=email,
+            namespace=namespace,
+            auth_provider="cognito",
+            email_verified=True,  # Cognito has already verified
+        )
+
     async def update(
         self,
         user_id: str,
@@ -128,9 +157,16 @@ class APIKeyRepository:
         user_id: str,
         name: str,
         scopes: Optional[List[str]] = None,
+        expires_days: int = 90,
     ) -> Tuple[str, APIKey]:
         """
         Create a new API key.
+
+        Args:
+            user_id: User ID to associate with the key
+            name: Display name for the key
+            scopes: List of scopes (default: ["read", "write"])
+            expires_days: Days until expiration (default: 90)
 
         Returns:
             Tuple of (plaintext_api_key, api_key_record)
@@ -149,6 +185,10 @@ class APIKeyRepository:
         if scopes is None:
             scopes = ["read", "write"]
 
+        # Calculate expiration (use timezone-aware datetime to match DB timestamps)
+        from datetime import timedelta, timezone
+        expires_at = datetime.now(timezone.utc) + timedelta(days=expires_days)
+
         # Create record
         key_record = APIKey(
             key_id=f"key_{secrets.token_urlsafe(16)}",
@@ -157,6 +197,7 @@ class APIKeyRepository:
             key_hash=key_hash,
             key_prefix=key_prefix,
             scopes=scopes,
+            expires_at=expires_at,
         )
 
         self.db.add(key_record)
@@ -169,6 +210,7 @@ class APIKeyRepository:
         """
         Verify an API key and return the key record if valid.
         Also updates last_used timestamp.
+        Returns None if key is invalid, inactive, or expired.
         """
         # Get all active keys (we need to check hash against all)
         result = await self.db.execute(
@@ -179,11 +221,18 @@ class APIKeyRepository:
         # Check each key's hash
         for key_record in keys:
             if bcrypt.checkpw(api_key.encode(), key_record.key_hash.encode()):
+                # Check if key has expired (use timezone-aware datetime)
+                from datetime import timezone
+                now = datetime.now(timezone.utc)
+                if key_record.expires_at and key_record.expires_at < now:
+                    # Key has expired - return None without updating last_used
+                    return None
+
                 # Update last_used timestamp
                 await self.db.execute(
                     update(APIKey)
                     .where(APIKey.key_id == key_record.key_id)
-                    .values(last_used=datetime.utcnow())
+                    .values(last_used=now)
                 )
                 await self.db.commit()
                 await self.db.refresh(key_record)

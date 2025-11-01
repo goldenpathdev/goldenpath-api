@@ -68,6 +68,7 @@ class APIKeyResponse(BaseModel):
     scopes: List[str]
     created_at: datetime
     last_used: Optional[datetime]
+    expires_at: Optional[datetime]
     is_active: bool
 
     class Config:
